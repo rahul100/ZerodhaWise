@@ -3,8 +3,8 @@
 
 # Zerodha API Configuration
 zerodha:
-  api_key: "aqnhrjdciu1f4oe0"
-  api_secret: "yhgv0jniafkz61umy87kfvcb1kwne5bx"
+  api_key: "your_api_key_here"
+  api_secret: "your_api_secret_here"
   access_token: "your_access_token_here"  # Optional, will be generated if not provided
 
 # Database Configuration

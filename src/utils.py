@@ -18,6 +18,12 @@ from typing import Dict, Optional
 from bs4 import BeautifulSoup
 import json
 
+import pandas as pd
+import yfinance as yf
+import time
+import logging
+
+
 
 def load_config(config_path: Optional[str] = None) -> Dict[str, Any]:
     """
@@ -895,3 +901,132 @@ def update_holdings_with_finology_data(holdings: List[Dict[str, Any]]) -> List[D
         updated_holdings.append(holding)
     
     return updated_holdings
+
+
+# It's good practice to have logging in place.
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
+def get_comprehensive_nse_bse_stocks():
+    """
+    Fetches a list of all stocks from NSE and BSE, then uses yfinance
+    to get their sector and market capitalization.
+
+    Returns:
+        Dict[str, Dict]: A dictionary where keys are stock symbols and
+                         values are dictionaries with sector and market cap info.
+    """
+    stocks_data = {}
+    
+    # URLs for the CSV files containing the list of securities
+    # Note: These URLs can change. It's best to verify them periodically.
+    nse_url = 'https://nsearchives.nseindia.com/content/equities/sec_list.csv'
+    bse_url = 'https://www.bseindia.com/corporates/List_Scrips.aspx' # BSE provides a downloadable CSV here
+
+    # --- Step 1: Get the list of NSE tickers ---
+    try:
+        # logging.info("Fetching list of NSE stocks...")
+        # NSE provides a clean CSV, but it might need a user-agent header
+        nse_df = pd.read_csv('data/sec_list.csv', header=0)
+        print(nse_df.head())
+        # We only need the 'SYMBOL' column
+        nse_tickers = nse_df['Symbol'].tolist()
+        # logging.info(f"Found {len(nse_tickers)} tickers for NSE.")
+    except Exception as e:
+        logging.error(f"Could not fetch NSE ticker list: {e}")
+        nse_tickers = []
+
+    # --- Step 2: For BSE, the process is often more complex, so we'll focus on NSE
+    # as a primary example and note that a similar process applies for BSE.
+    # A full implementation would involve scraping the download link from the bse_url page.
+    bse_tickers = []
+    logging.warning("BSE ticker list download is complex and not implemented in this example.")
+
+
+    # --- Step 3: Use yfinance to get data for each ticker ---
+    # Combine lists and append the correct suffix for yfinance
+    all_tickers = [f"{ticker}.NS" for ticker in nse_tickers] + [f"{ticker}.BO" for ticker in bse_tickers]
+
+    logging.info(f"Fetching details for {len(all_tickers)} tickers from Yahoo Finance...")
+
+    for i, ticker_symbol in enumerate(all_tickers[:10]):
+        # Add a small delay to avoid getting rate-limited by Yahoo Finance
+        # time.sleep(0.1)
+        
+        try:
+            # Create a Ticker object
+            stock = yf.Ticker(ticker_symbol)
+            
+            # Fetch stock info. Using .info can be slow for many tickers.
+            # Consider using yf.download for faster bulk data if only prices are needed.
+            info = stock.info
+            
+            # Extract the required data if it exists
+            sector = info.get('sector', 'N/A')
+            market_cap = info.get('marketCap', 'N/A')
+            
+            # Store the data
+            clean_symbol = ticker_symbol.split('.')[0]
+            stocks_data[clean_symbol] = {
+                'sector': sector,
+                'market_cap': market_cap,
+                'exchange': 'NSE' if '.NS' in ticker_symbol else 'BSE'
+            }
+            
+            if (i + 1) % 100 == 0:
+                logging.info(f"Processed {i + 1}/{len(all_tickers)} tickers...")
+
+        except Exception as e:
+            logging.warning(f"Could not get data for {ticker_symbol}: {e}")
+            continue
+            
+    logging.info(f"Successfully fetched details for {len(stocks_data)} stocks.")
+    return stocks_data
+def get_sector_details_for_nse_stocks():
+
+    """
+    Fetches a list of all stocks from NSE then uses yfinance to get info on the stock including
+    the sector and market capitalization.
+
+    Returns: None
+        
+    """
+
+    nse_df = pd.read_csv('data/sec_list.csv', header=0)
+
+    list_of_tickers = nse_df['Symbol'].tolist()
+
+    final_dict = {}
+    for ticker in list_of_tickers:
+        stock_info = yf.Ticker(f'{ticker}.NS').info
+        final_dict[ticker] = stock_info
+    with open('data/nse_ticker_info.json','w') as f:
+        json.dump(final_dict,f)
+# def get_sector_and_mcap(ticker_nse,):
+#     with open('data/nse_ticker_info.json', 'r') as f:
+#         ticker_with_details = json.load(f)
+
+#     print(ticker_with_details['21STCENMGM']['sector'])
+
+
+
+    
+
+
+if __name__ == '__main__':
+    # To run this example, make sure you have the required libraries installed:
+    # pip install pandas yfinance
+    get_sector_details_for_nse_stocks()
+    with open('data/nse_ticker_info.json', 'r') as f:
+        ticker_with_details = json.load(f)
+    pticker_with_details.keys()
+    print(ticker_with_details['21STCENMGM']['sector'])
+    
+    
+    # comprehensive_data = get_comprehensive_nse_bse_stocks()
+    
+    # # Print sample data for the first 5 stocks
+    # print("\n--- Sample Stock Data ---")
+    # for i, (symbol, data) in enumerate(comprehensive_data.items()):
+    #     if i >= 10:
+    #         break
+    #     print(f"{symbol}: Sector='{data['sector']}', Market Cap={data['market_cap']}")

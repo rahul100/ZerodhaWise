@@ -8,15 +8,27 @@ portfolio data and generate reports.
 
 import sys
 import os
+from typing import Dict, Any
 
 # Add the src directory to the Python path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
+sys.path.append(os.path.join(os.path.dirname(__file__), 'src'))
 
+from utils import create_sample_data, setup_logging
 from portfolio import PortfolioAnalyzer
 from performance import PerformanceAnalyzer
 from risk import RiskAnalyzer
 from visualization import ChartGenerator
-from utils import create_sample_data, setup_logging
+        
+# Setup logging
+logger = setup_logging(__name__)
+
+
+def _calculate_market_value(holding: Dict[str, Any]) -> float:
+    """Calculate market value from quantity and close_price."""
+    if 'market_value' in holding:
+        return float(holding['market_value'])
+    else:
+        return float(holding['quantity']) * float(holding['close_price'])
 
 
 def main():
@@ -24,10 +36,9 @@ def main():
     print("ZerodhaWise - Portfolio Analysis Example")
     print("=" * 50)
     
-    # Setup logging
-    logger = setup_logging(__name__)
-    
     try:
+        # Import modules
+        
         # Initialize analyzers
         print("Initializing analyzers...")
         portfolio_analyzer = PortfolioAnalyzer()
@@ -57,7 +68,7 @@ def main():
         # Show top holdings
         print(f"\nTop Holdings:")
         for i, holding in enumerate(portfolio_analysis['top_holdings'][:5], 1):
-            print(f"  {i}. {holding['tradingsymbol']}: ₹{float(holding['market_value']):,.2f}")
+            print(f"  {i}. {holding['tradingsymbol']}: ₹{_calculate_market_value(holding):,.2f}")
         
         # Risk analysis
         print(f"\nPerforming risk analysis...")
@@ -99,8 +110,9 @@ def main():
         print(f"Check the 'reports' directory for generated files.")
         
     except Exception as e:
-        logger.error(f"Error in example: {str(e)}")
         print(f"Error: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return 1
     
     return 0
@@ -119,6 +131,7 @@ def demo_with_real_data():
         # Fetch real portfolio data
         print("Fetching portfolio data from Zerodha...")
         portfolio = portfolio_analyzer.get_portfolio()
+        print(portfolio)
         
         if portfolio and portfolio.get('holdings'):
             print(f"Successfully fetched portfolio with {len(portfolio['holdings'])} holdings")
@@ -146,9 +159,9 @@ def demo_with_real_data():
 
 if __name__ == "__main__":
     # Run the example with sample data
-    exit_code = main()
+    # exit_code = main()
     
     # Optionally run with real data (uncomment if you have API credentials)
-    # demo_with_real_data()
+    demo_with_real_data()
     
-    sys.exit(exit_code) 
+    # sys.exit(exit_code) 

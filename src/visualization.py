@@ -16,7 +16,7 @@ import plotly.graph_objects as go
 import plotly.express as px
 from plotly.subplots import make_subplots
 import os
-from .utils import load_config, setup_logging, format_currency, format_percentage
+from utils import load_config, setup_logging, format_currency, format_percentage
 
 
 class ChartGenerator:
@@ -40,6 +40,13 @@ class ChartGenerator:
         # Set style for matplotlib
         plt.style.use('seaborn-v0_8')
         sns.set_palette("husl")
+    
+    def _calculate_market_value(self, holding: Dict[str, Any]) -> float:
+        """Calculate market value from quantity and close_price."""
+        if 'market_value' in holding:
+            return float(holding['market_value'])
+        else:
+            return float(holding['quantity']) * float(holding['close_price'])
     
     def create_portfolio_summary_chart(self, portfolio_data: Dict[str, Any], 
                                      save_path: Optional[str] = None) -> str:
@@ -258,7 +265,7 @@ class ChartGenerator:
                 sector_data = {}
                 for holding in holdings:
                     sector = holding.get('sector', 'Unknown')
-                    market_value = float(holding['market_value'])
+                    market_value = self._calculate_market_value(holding)
                     sector_data[sector] = sector_data.get(sector, 0) + market_value
                 
                 sectors = list(sector_data.keys())
@@ -272,9 +279,9 @@ class ChartGenerator:
             # 6. Top Holdings (Bar Chart)
             if holdings:
                 # Get top 10 holdings by market value
-                sorted_holdings = sorted(holdings, key=lambda x: float(x['market_value']), reverse=True)[:10]
+                sorted_holdings = sorted(holdings, key=lambda x: self._calculate_market_value(x), reverse=True)[:10]
                 symbols = [h['tradingsymbol'] for h in sorted_holdings]
-                values = [float(h['market_value']) for h in sorted_holdings]
+                values = [self._calculate_market_value(h) for h in sorted_holdings]
                 
                 fig.add_trace(
                     go.Bar(x=symbols, y=values, name="Top Holdings"),
@@ -308,7 +315,7 @@ class ChartGenerator:
             return
         
         symbols = [h['tradingsymbol'] for h in holdings]
-        values = [float(h['market_value']) for h in holdings]
+        values = [self._calculate_market_value(h) for h in holdings]
         
         ax.pie(values, labels=symbols, autopct='%1.1f%%', startangle=90)
         ax.set_title('Portfolio Composition')
@@ -341,7 +348,7 @@ class ChartGenerator:
         sector_data = {}
         for holding in holdings:
             sector = holding.get('sector', 'Unknown')
-            market_value = float(holding['market_value'])
+            market_value = self._calculate_market_value(holding)
             sector_data[sector] = sector_data.get(sector, 0) + market_value
         
         sectors = list(sector_data.keys())
@@ -364,9 +371,9 @@ class ChartGenerator:
             return
         
         # Get top 10 holdings by market value
-        sorted_holdings = sorted(holdings, key=lambda x: float(x['market_value']), reverse=True)[:10]
+        sorted_holdings = sorted(holdings, key=lambda x: self._calculate_market_value(x), reverse=True)[:10]
         symbols = [h['tradingsymbol'] for h in sorted_holdings]
-        values = [float(h['market_value']) for h in sorted_holdings]
+        values = [self._calculate_market_value(h) for h in sorted_holdings]
         
         bars = ax.barh(symbols, values)
         ax.set_title('Top Holdings by Market Value')

@@ -15,7 +15,7 @@ import os
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.ext.declarative import declarative_base
-from .utils import load_config, setup_logging
+from utils import load_config, setup_logging
 
 Base = declarative_base()
 
@@ -56,6 +56,13 @@ class DataManager:
             self.logger.error(f"Database setup failed: {str(e)}")
             raise
     
+    def _calculate_market_value(self, holding: Dict[str, Any]) -> float:
+        """Calculate market value from quantity and close_price."""
+        if 'market_value' in holding:
+            return float(holding['market_value'])
+        else:
+            return float(holding['quantity']) * float(holding['close_price'])
+    
     def save_portfolio(self, portfolio_data: Dict[str, Any]) -> bool:
         """
         Save portfolio data to database.
@@ -73,7 +80,7 @@ class DataManager:
             portfolio_record = {
                 'timestamp': datetime.now(),
                 'data': json.dumps(portfolio_data),
-                'total_value': sum(float(h['market_value']) for h in portfolio_data.get('holdings', [])),
+                'total_value': sum(self._calculate_market_value(h) for h in portfolio_data.get('holdings', [])),
                 'total_pnl': sum(float(h['pnl']) for h in portfolio_data.get('holdings', [])),
                 'num_holdings': len(portfolio_data.get('holdings', []))
             }

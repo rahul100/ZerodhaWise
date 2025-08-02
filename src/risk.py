@@ -12,8 +12,8 @@ import pandas as pd
 import numpy as np
 from scipy import stats
 from sklearn.decomposition import PCA
-from .utils import load_config, setup_logging
-from .data import DataManager
+from utils import load_config, setup_logging
+from data import DataManager
 
 
 class RiskAnalyzer:
@@ -34,6 +34,13 @@ class RiskAnalyzer:
         self.config = load_config(config_path)
         self.logger = setup_logging(__name__)
         self.data_manager = DataManager(self.config)
+    
+    def _calculate_market_value(self, holding: Dict[str, Any]) -> float:
+        """Calculate market value from quantity and close_price."""
+        if 'market_value' in holding:
+            return float(holding['market_value'])
+        else:
+            return float(holding['quantity']) * float(holding['close_price'])
     
     def analyze_portfolio_risk(self, portfolio_data: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -57,7 +64,7 @@ class RiskAnalyzer:
         volatility_analysis = self._calculate_volatility_analysis(holdings)
         
         # Calculate portfolio-level risk metrics
-        total_value = sum(float(holding['market_value']) for holding in holdings)
+        total_value = sum(self._calculate_market_value(holding) for holding in holdings)
         total_pnl = sum(float(holding['pnl']) for holding in holdings)
         
         risk_metrics = {
@@ -130,7 +137,7 @@ class RiskAnalyzer:
         # Calculate individual stock risk metrics
         stock_risks = []
         for holding in holdings:
-            market_value = float(holding['market_value'])
+            market_value = self._calculate_market_value(holding)
             pnl = float(holding['pnl'])
             
             # Calculate risk metrics for each stock
@@ -139,7 +146,7 @@ class RiskAnalyzer:
                 'market_value': market_value,
                 'pnl': pnl,
                 'pnl_percentage': (pnl / market_value * 100) if market_value > 0 else 0,
-                'weight': market_value / sum(float(h['market_value']) for h in holdings),
+                'weight': market_value / sum(self._calculate_market_value(h) for h in holdings),
                 'volatility': self._estimate_stock_volatility(holding),
                 'var_95': self._estimate_stock_var(holding, 0.05),
                 'var_99': self._estimate_stock_var(holding, 0.01)
@@ -147,7 +154,7 @@ class RiskAnalyzer:
             stock_risks.append(stock_risk)
         
         # Calculate portfolio-level metrics
-        total_value = sum(float(h['market_value']) for h in holdings)
+        total_value = sum(self._calculate_market_value(h) for h in holdings)
         total_pnl = sum(float(h['pnl']) for h in holdings)
         
         # Portfolio volatility (weighted average)
@@ -268,15 +275,15 @@ RISK RECOMMENDATIONS:
         if not holdings:
             return {}
         
-        total_value = sum(float(h['market_value']) for h in holdings)
+        total_value = sum(self._calculate_market_value(h) for h in holdings)
         
         # Top 5 concentration
-        sorted_holdings = sorted(holdings, key=lambda x: float(x['market_value']), reverse=True)
-        top_5_value = sum(float(h['market_value']) for h in sorted_holdings[:5])
+        sorted_holdings = sorted(holdings, key=lambda x: self._calculate_market_value(x), reverse=True)
+        top_5_value = sum(self._calculate_market_value(h) for h in sorted_holdings[:5])
         top_5_concentration = (top_5_value / total_value * 100) if total_value > 0 else 0
         
         # Single stock concentration
-        max_single_stock = max(float(h['market_value']) for h in holdings)
+        max_single_stock = max(self._calculate_market_value(h) for h in holdings)
         max_single_concentration = (max_single_stock / total_value * 100) if total_value > 0 else 0
         
         return {
@@ -291,7 +298,7 @@ RISK RECOMMENDATIONS:
         
         for holding in holdings:
             sector = holding.get('sector', 'Unknown')
-            market_value = float(holding['market_value'])
+            market_value = self._calculate_market_value(holding)
             
             if sector not in sector_data:
                 sector_data[sector] = {'total_value': 0, 'count': 0}
@@ -337,11 +344,11 @@ RISK RECOMMENDATIONS:
             return {}
         
         # Calculate weighted average volatility
-        total_value = sum(float(h['market_value']) for h in holdings)
+        total_value = sum(self._calculate_market_value(h) for h in holdings)
         weighted_volatility = 0
         
         for holding in holdings:
-            weight = float(holding['market_value']) / total_value if total_value > 0 else 0
+            weight = self._calculate_market_value(holding) / total_value if total_value > 0 else 0
             # Estimate volatility (in real implementation, use historical data)
             estimated_volatility = 0.25  # Placeholder - 25% annual volatility
             weighted_volatility += weight * estimated_volatility
@@ -374,8 +381,8 @@ RISK RECOMMENDATIONS:
             return 0.0
         
         # Calculate HHI
-        total_value = sum(float(h['market_value']) for h in holdings)
-        hhi = sum((float(h['market_value']) / total_value) ** 2 for h in holdings) if total_value > 0 else 1
+        total_value = sum(self._calculate_market_value(h) for h in holdings)
+        hhi = sum((self._calculate_market_value(h) / total_value) ** 2 for h in holdings) if total_value > 0 else 1
         
         # Convert HHI to diversification score (0-10)
         # Lower HHI = higher diversification
@@ -420,7 +427,7 @@ RISK RECOMMENDATIONS:
         
         for holding in holdings:
             sector = holding.get('sector', 'Unknown')
-            market_value = float(holding['market_value'])
+            market_value = self._calculate_market_value(holding)
             
             if sector not in sector_data:
                 sector_data[sector] = {'total_value': 0, 'count': 0}
@@ -442,15 +449,15 @@ RISK RECOMMENDATIONS:
         if not holdings:
             return {}
         
-        total_value = sum(float(h['market_value']) for h in holdings)
+        total_value = sum(self._calculate_market_value(h) for h in holdings)
         
         # Calculate concentration metrics
-        sorted_holdings = sorted(holdings, key=lambda x: float(x['market_value']), reverse=True)
+        sorted_holdings = sorted(holdings, key=lambda x: self._calculate_market_value(x), reverse=True)
         
         concentration_metrics = {
-            'top_1_concentration': (float(sorted_holdings[0]['market_value']) / total_value * 100) if total_value > 0 else 0,
-            'top_3_concentration': (sum(float(h['market_value']) for h in sorted_holdings[:3]) / total_value * 100) if total_value > 0 else 0,
-            'top_5_concentration': (sum(float(h['market_value']) for h in sorted_holdings[:5]) / total_value * 100) if total_value > 0 else 0,
+            'top_1_concentration': (self._calculate_market_value(sorted_holdings[0]) / total_value * 100) if total_value > 0 else 0,
+            'top_3_concentration': (sum(self._calculate_market_value(h) for h in sorted_holdings[:3]) / total_value * 100) if total_value > 0 else 0,
+            'top_5_concentration': (sum(self._calculate_market_value(h) for h in sorted_holdings[:5]) / total_value * 100) if total_value > 0 else 0,
             'number_of_stocks': len(holdings)
         }
         
@@ -470,12 +477,12 @@ RISK RECOMMENDATIONS:
         if not holdings:
             return 1.0  # Maximum concentration
         
-        total_value = sum(float(h['market_value']) for h in holdings)
+        total_value = sum(self._calculate_market_value(h) for h in holdings)
         
         if total_value == 0:
             return 1.0
         
-        hhi = sum((float(h['market_value']) / total_value) ** 2 for h in holdings)
+        hhi = sum((self._calculate_market_value(h) / total_value) ** 2 for h in holdings)
         return hhi
     
     def _calculate_effective_stocks(self, holdings: List[Dict[str, Any]]) -> float:

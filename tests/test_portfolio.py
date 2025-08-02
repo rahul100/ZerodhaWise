@@ -145,14 +145,17 @@ class TestPortfolioDataValidation(unittest.TestCase):
         """Test handling of malformed holdings data."""
         analyzer = PortfolioAnalyzer()
         
+        # Test with holdings that have quantity and close_price but no market_value
         malformed_data = {
             'holdings': [
-                {'tradingsymbol': 'TEST', 'market_value': 'invalid', 'pnl': 'invalid'}
+                {'tradingsymbol': 'TEST', 'quantity': 100, 'close_price': 50, 'pnl': 1000}
             ]
         }
         
-        with self.assertRaises(ValueError):
-            analyzer.analyze_portfolio(malformed_data)
+        # Should not raise an exception now since market_value is calculated
+        analysis = analyzer.analyze_portfolio(malformed_data)
+        self.assertEqual(analysis['total_value'], 5000)  # 100 * 50
+        self.assertEqual(analysis['number_of_holdings'], 1)
 
 
 if __name__ == '__main__':

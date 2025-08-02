@@ -8,7 +8,7 @@ allowing users to interact with the portfolio analysis tools.
 import argparse
 import sys
 import os
-from typing import Optional
+from typing import Optional, Dict, Any
 from datetime import datetime
 import pandas as pd
 
@@ -17,6 +17,14 @@ from .performance import PerformanceAnalyzer
 from .risk import RiskAnalyzer
 from .visualization import ChartGenerator
 from .utils import load_config, setup_logging, create_sample_data
+
+
+def _calculate_market_value(holding: Dict[str, Any]) -> float:
+    """Calculate market value from quantity and close_price."""
+    if 'market_value' in holding:
+        return float(holding['market_value'])
+    else:
+        return float(holding['quantity']) * float(holding['close_price'])
 
 
 def main():
@@ -147,7 +155,7 @@ def handle_portfolio_command(args, config):
         for i, holding in enumerate(portfolio['holdings'], 1):
             print(f"{i}. {holding['tradingsymbol']} ({holding['exchange']})")
             print(f"   Quantity: {holding['quantity']}")
-            print(f"   Market Value: ₹{float(holding['market_value']):,.2f}")
+            print(f"   Market Value: ₹{_calculate_market_value(holding):,.2f}")
             print(f"   P&L: ₹{float(holding['pnl']):,.2f}")
             print()
     

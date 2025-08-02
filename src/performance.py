@@ -11,8 +11,8 @@ from datetime import datetime, timedelta
 import pandas as pd
 import numpy as np
 from scipy import stats
-from .utils import load_config, setup_logging
-from .data import DataManager
+from utils import load_config, setup_logging
+from data import DataManager
 
 
 class PerformanceAnalyzer:

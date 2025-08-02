@@ -4,15 +4,19 @@ Portfolio analysis module for ZerodhaWise.
 This module provides comprehensive portfolio analysis functionality including
 portfolio fetching, analysis, and management.
 """
-
+import sys
+import os
+sys.path.append(os.path.join(os.path.dirname(__file__), 'src'))
 import logging
 from typing import Dict, List, Optional, Any
 from datetime import datetime, timedelta
 import pandas as pd
 import numpy as np
 from kiteconnect import KiteConnect
-from .utils import load_config, setup_logging
-from .data import DataManager
+from utils import load_config, setup_logging
+from data import DataManager
+import webbrowser
+from urllib.parse import urlparse, parse_qs
 
 
 class PortfolioAnalyzer:
@@ -29,14 +33,50 @@ class PortfolioAnalyzer:
         Args:
             config_path: Path to configuration file. If None, uses default config.
         """
+        if config_path is None:
+            config_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'config', 'config.yaml')
+
         self.config = load_config(config_path)
         self.logger = setup_logging(__name__)
         self.data_manager = DataManager(self.config)
         
         # Initialize Kite Connect
         self.kite = KiteConnect(api_key=self.config['zerodha']['api_key'])
-        if 'access_token' in self.config['zerodha']:
-            self.kite.set_access_token(self.config['zerodha']['access_token'])
+        # print(self.kite.login_url())
+        import yaml
+
+        access_token = self.config['zerodha'].get('access_token')
+        session_generated = False
+
+        if access_token and access_token != "your_access_token_here":
+            try:
+                self.kite.set_access_token(access_token)
+                # Try a simple API call to check if token is valid
+                self.kite.profile()
+            except Exception as e:
+                self.logger.warning(f"Access token from config invalid or expired: {e}. Generating new session.")
+                session_generated = True
+        else:
+            session_generated = True
+
+        if session_generated:
+            webbrowser.open(self.kite.login_url())
+            request_token = input("Enter the request token: ")
+            data = self.kite.generate_session(
+                request_token,
+                api_secret=self.config['zerodha']['api_secret']
+            )
+            self.kite.set_access_token(data['access_token'])
+            # Write new access token back to config.yaml
+            config_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'config', 'config.yaml')
+            with open(config_path, 'r') as f:
+                config_yaml = yaml.safe_load(f)
+            config_yaml['zerodha']['access_token'] = data['access_token']
+            with open(config_path, 'w') as f:
+                yaml.safe_dump(config_yaml, f)
+        else:
+            self.logger.info("Using access token from config.yaml")
+            
     
     def get_portfolio(self) -> Dict[str, Any]:
         """
@@ -90,8 +130,12 @@ class PortfolioAnalyzer:
         holdings = portfolio['holdings']
         
         # Calculate basic metrics
-        total_value = sum(float(holding['market_value']) for holding in holdings)
+        total_value = sum(float(holding['quantity']* holding['close_price']) for holding in holdings)
         total_pnl = sum(float(holding['pnl']) for holding in holdings)
+        
+        # Add calculated market_value to each holding for consistency
+        for holding in holdings:
+            holding['market_value'] = float(holding['quantity']) * float(holding['close_price'])
         
         # Sector analysis
         sector_analysis = self._analyze_sectors(holdings)
@@ -121,7 +165,11 @@ class PortfolioAnalyzer:
         
         for holding in holdings:
             sector = holding.get('sector', 'Unknown')
-            market_value = float(holding['market_value'])
+            # Calculate market_value if not present
+            if 'market_value' not in holding:
+                market_value = float(holding['quantity']) * float(holding['close_price'])
+            else:
+                market_value = float(holding['market_value'])
             
             if sector not in sector_data:
                 sector_data[sector] = {
@@ -241,12 +289,18 @@ Detailed Holdings:
         
         holdings = portfolio['holdings']
         for i, holding in enumerate(holdings, 1):
+            # Calculate market_value if not present
+            if 'market_value' not in holding:
+                market_value = float(holding['quantity']) * float(holding['close_price'])
+            else:
+                market_value = float(holding['market_value'])
+                
             report += f"""
 {i}. {holding['tradingsymbol']} ({holding['exchange']})
     Quantity: {holding['quantity']}
-    Market Value: ₹{float(holding['market_value']):,.2f}
+    Market Value: ₹{market_value:,.2f}
     P&L: ₹{float(holding['pnl']):,.2f}
-    P&L %: {(float(holding['pnl']) / float(holding['market_value']) * 100):.2f}%
+    P&L %: {(float(holding['pnl']) / market_value * 100):.2f}%
 """
         
         # Save report
